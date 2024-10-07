@@ -28,11 +28,11 @@ import com.sphenon.basics.graph.*;
 import com.sphenon.basics.locating.*;
 import com.sphenon.basics.locating.returncodes.*;
 
-import com.sphenon.basics.xml.*;
-import com.sphenon.basics.xml.returncodes.*;
-import com.sphenon.basics.xmlbindings.*;
+import com.sphenon.formats.json.*;
+import com.sphenon.formats.json.factories.*;
+import com.sphenon.formats.json.returncodes.*;
 
-import org.apache.xerces.xni.parser.XMLInputSource;
+import com.sphenon.basics.xmlbindings.*;
 
 import java.io.File;
 import java.io.InputStream;
@@ -40,26 +40,28 @@ import java.util.Vector;
 import java.util.Map;
 import java.util.HashMap;
 
-public class LocatorXPath extends Locator {
+public class LocatorJPath extends Locator {
     static protected Configuration config;
-    static { config = Configuration.create(RootContext.getInitialisationContext(), "com.sphenon.basics.locating.locators.LocatorXPath"); };
+    static { config = Configuration.create(RootContext.getInitialisationContext(), "com.sphenon.basics.locating.locators.LocatorJPath"); };
     static {
         XMLBindingsPackageInitialiser.initialise();
     }
 
-    public LocatorXPath (CallContext context, String text_locator_value, Locator sub_locator, String locator_class_parameter_string) {
+    public LocatorJPath (CallContext context, String text_locator_value, Locator sub_locator, String locator_class_parameter_string) {
         super(context, text_locator_value, sub_locator, locator_class_parameter_string);
     }
 
     /* Parser States -------------------------------------------------------------------- */
 
+    static protected LocatorParserState[] locator_parser_state;
+        
     protected LocatorParserState[] getParserStates(CallContext context) {
-        CustomaryContext.create((Context)context).throwPreConditionViolation(context, "LocatorXPath text locator value is not interpreted by this locator, therefore there are no parser states available");
-        throw (ExceptionPreConditionViolation) null; // compiler insists
-    }
-
-    protected boolean canGetParserStates(CallContext context) {
-        return false;
+        if (locator_parser_state == null) {
+            locator_parser_state = new LocatorParserState[] {
+                new LocatorParserState(context, "property", "property::String:0", false, true, Object.class)
+            };
+        }
+        return locator_parser_state;
     }
 
     /* Base Acceptors ------------------------------------------------------------------- */
@@ -80,7 +82,7 @@ public class LocatorXPath extends Locator {
             locator_base_acceptors = new Vector<LocatorBaseAcceptor>();
             locator_base_acceptors.add(new LocatorBaseAcceptor_File(context));
             locator_base_acceptors.add(new LocatorBaseAcceptor(context, InputStream.class));
-            locator_base_acceptors.add(new LocatorBaseAcceptor(context, XMLNode.class));
+            locator_base_acceptors.add(new LocatorBaseAcceptor(context, JSONNode.class));
             locator_base_acceptors.add(new LocatorBaseAcceptor(context, TreeLeaf.class));
             locator_base_acceptors.add(new LocatorBaseAcceptor(context, Data_MediaObject.class));
         }
@@ -100,7 +102,7 @@ public class LocatorXPath extends Locator {
     protected LocatorClassParameter[] getLocatorClassParameters(CallContext context) {
         if (locator_class_parameters == null) {
             locator_class_parameters = new LocatorClassParameter[] {
-                new LocatorClassParameter(context, "targettype", "XMLNode|Text", "XMLNode")
+                new LocatorClassParameter(context, "targettype", "JSONNode|Text", "JSONNode")
             };
         }
         return locator_class_parameters;
@@ -109,52 +111,58 @@ public class LocatorXPath extends Locator {
     /* ---------------------------------------------------------------------------------- */
 
     public String getTargetVariableName(CallContext context) {
-        return "xml_node";
+        return "json_node";
     }
-
-    static protected RegularExpression nsre = new RegularExpression("^xmlns:([a-z0-9]+)=([^/]+)/(.*)$");
 
     protected Object retrieveLocalTarget(CallContext context) throws InvalidLocator {
         Object base = lookupBaseObject(context, true);
 
-        XMLNode xn = null;
+        JSONNode xn = null;
         try {
-            if (base instanceof File) {
-                xn = XMLNode.createXMLNode(context, (File) base);
-            } else if (base instanceof InputStream) {
-                xn = XMLNode.createXMLNode(context, (InputStream) base, "");
-            } else if (base instanceof XMLNode) {
-                xn = (XMLNode) base;
-            } else if (base instanceof TreeLeaf) {
-                Data_MediaObject data = ((Data_MediaObject)(((NodeContent_Data)(((TreeLeaf) base).getContent(context))).getData(context)));
-                xn = XMLNode.createXMLNode(context, data instanceof Data_MediaObject_File ? new XMLInputSource(null, ((Data_MediaObject_File)(data)).getCurrentFile(context).getPath(), null) : new XMLInputSource(null, null, null, data.getStream(context), null), data.getDispositionFilename(context));
-            } else if (base instanceof Data_MediaObject) {
-                Data_MediaObject data = (Data_MediaObject) base;
-                xn = XMLNode.createXMLNode(context, data instanceof Data_MediaObject_File ? new XMLInputSource(null, ((Data_MediaObject_File)(data)).getCurrentFile(context).getPath(), null) : new XMLInputSource(null, null, null, data.getStream(context), null), data.getDispositionFilename(context));
-            } else {
-                assert(false);
-            }
-        } catch (InvalidXML ix) {
-            InvalidLocator.createAndThrow(context, ix, "Base '%(base)' for locator '%(locator)' contains invalid XML", "base", base, "locator", this.getTextLocatorValue(context));
+            xn = Factory_JSONNode.constructByObject(context, base);
+        } catch (Throwable t) {
+            InvalidLocator.createAndThrow(context, t, "Base '%(base)' for locator '%(locator)' contains invalid JSON", "base", base, "locator", this.getTextLocatorValue(context));
             throw (InvalidLocator) null; // compiler insists
         }
 
-        String xpath = this.getTextLocatorValue(context);
-        Map<String,String> namespaces = new HashMap<String,String>();
-        String[] match;
-        while ((match = nsre.tryGetMatches(context, xpath)) != null) {
-            namespaces.put(match[0], Encoding.recode(context, match[1], Encoding.URI, Encoding.UTF8));
-            xpath = match[2];
-        }
+        LocatorStep[] steps = getLocatorSteps(context);
 
-        XMLNode xnr = xn.resolveXPath(context, xpath, namespaces);
+        for (LocatorStep step : steps) {
+            String sa = step.getAttribute(context);
+            String sv = step.getValue(context);
+            if (sv == null || sv.length() == 0) { continue; }
+            if (sv.matches("^[0-9]+$")) {
+                if (xn.isArray(context)) {
+                    int index = Integer.parseInt(sv);
+                    xn = xn.getChild(context, index);
+                    if (xn == null) {
+                        InvalidLocator.createAndThrow(context, "JSONNode of array in step '%(value)' in locator '%(locator)' does not exist", "value", sv, "locator", this.getTextLocatorValue(context));
+                        throw (InvalidLocator) null; // compiler insists
+                    }
+                } else {
+                    InvalidLocator.createAndThrow(context, "JSONNode in step '%(value)' in locator '%(locator)' cannot be applied since it's not an array", "value", sv, "locator", this.getTextLocatorValue(context));
+                    throw (InvalidLocator) null; // compiler insists
+                }
+            } else {
+                if (xn.isObject(context)) {
+                    xn = xn.getChild(context, sv);
+                    if (xn == null) {
+                        InvalidLocator.createAndThrow(context, "JSONNode of object in step '%(value)' in locator '%(locator)' does not exist", "value", sv, "locator", this.getTextLocatorValue(context));
+                        throw (InvalidLocator) null; // compiler insists
+                    }
+                } else {
+                    InvalidLocator.createAndThrow(context, "JSONNode in step '%(value)' in locator '%(locator)' cannot be applied since it's not an object", "value", sv, "locator", this.getTextLocatorValue(context));
+                    throw (InvalidLocator) null; // compiler insists
+                }
+            }
+        }
 
         String ltype = getLocatorClassParameter(context, "targettype");
 
-        if (ltype.equals("XMLNode")) {
-            return xnr;
+        if (ltype.equals("JSONNode")) {
+            return xn;
         } else {
-            return xnr.toText(context);
+            return xn.toText(context);
         }
     }
 }

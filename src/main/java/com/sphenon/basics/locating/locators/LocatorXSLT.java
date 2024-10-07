@@ -1,7 +1,7 @@
 package com.sphenon.basics.locating.locators;
 
 /****************************************************************************
-  Copyright 2001-2018 Sphenon GmbH
+  Copyright 2001-2024 Sphenon GmbH
 
   Licensed under the Apache License, Version 2.0 (the "License"); you may not
   use this file except in compliance with the License. You may obtain a copy
@@ -292,7 +292,7 @@ public class LocatorXSLT extends Locator {
             swt.setLastModification(context, 0);
         } else if (object instanceof TreeLeaf) {
             Data_MediaObject data = ((Data_MediaObject)(((NodeContent_Data)(((TreeLeaf) object).getContent(context))).getData(context)));
-            String id = ((TreeLeaf) object).getLocation(context).getLocators(context).get(0).getTextLocator(context);
+            String id = ((TreeLeaf) object).getLocation(context).getLocators(context).get(0).getPartialTextLocator(context);
             if (data instanceof Data_MediaObject_File) {
                 swt.setSource(context, createSource(context, (File) ((Data_MediaObject_File)(data)).getCurrentFile(context), id));
             } else {
@@ -346,7 +346,7 @@ public class LocatorXSLT extends Locator {
                 swt.setSource(context, new StreamSource((File) ((Data_MediaObject_File)(data)).getCurrentFile(context)));
             } else {
                 swt.setSource(context, new StreamSource(data.getStream(context)));
-                swt.getSource(context).setSystemId(((TreeLeaf) object).getLocation(context).getLocators(context).get(0).getTextLocator(context));
+                swt.getSource(context).setSystemId(((TreeLeaf) object).getLocation(context).getLocators(context).get(0).getPartialTextLocator(context));
             }
             swt.setLastModification(context, data.getLastUpdate(context).getTime());
         } else if (object instanceof JavaResource) {

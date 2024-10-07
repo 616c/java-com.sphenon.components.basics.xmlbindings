@@ -1,7 +1,7 @@
 package com.sphenon.basics.encoding;
 
 /****************************************************************************
-  Copyright 2001-2018 Sphenon GmbH
+  Copyright 2001-2024 Sphenon GmbH
 
   Licensed under the Apache License, Version 2.0 (the "License"); you may not
   use this file except in compliance with the License. You may obtain a copy
@@ -28,7 +28,9 @@ import com.sphenon.basics.services.*;
 import com.sphenon.basics.data.*;
 import com.sphenon.basics.data.conversion.*;
 
-import java .util.Map;
+import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 public class EncodingService_DOCPAGE_HTML implements EncodingService {
 
@@ -49,8 +51,19 @@ public class EncodingService_DOCPAGE_HTML implements EncodingService {
 
     protected DataConverter converter;
 
+    static protected Pattern space_pattern;
+
     public void recode(CallContext context, CharSequence source, Appendable target, Object... options) {
         if (source == null || source.length() == 0) { return; }
+        
+        if (space_pattern == null) {
+            try {
+                space_pattern = Pattern.compile("[^ \t\n\r]");
+            } catch (Throwable t) {
+            }
+        }
+        Matcher m = space_pattern.matcher(source);
+        if (m.find() == false) { return; }
 
         if (converter == null) {
             converter = DataConversionManager.getConverter(context, "page2html");

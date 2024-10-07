@@ -1,7 +1,7 @@
 package com.sphenon.basics.doclet.classes;
 
 /****************************************************************************
-  Copyright 2001-2018 Sphenon GmbH
+  Copyright 2001-2024 Sphenon GmbH
 
   Licensed under the Apache License, Version 2.0 (the "License"); you may not
   use this file except in compliance with the License. You may obtain a copy
@@ -41,14 +41,23 @@ public class DocletXML extends Class_MonitorableCoreObject implements Doclet, Or
     protected XMLNode xml_node;
     protected Doclet parent;
 
+    protected String default_maturity;
+    protected String default_security_class;
+
     public DocletXML (CallContext context, XMLNode xml_node, Doclet parent) {
-        this.xml_node = xml_node;
-        this.parent = parent;
+        this(context, xml_node, parent, null);
     }
 
     public DocletXML (CallContext context, XMLNode xml_node, Doclet parent, Origin origin) {
-        this(context, xml_node, parent);
+        this(context, xml_node, parent, origin, "Scratch", "Default");
+    }
+
+    public DocletXML (CallContext context, XMLNode xml_node, Doclet parent, Origin origin, String default_maturity, String default_security_class) {
+        this.xml_node = xml_node;
+        this.parent = parent;
         this.origin = origin;
+        this.default_maturity = default_maturity;
+        this.default_security_class = default_security_class;
     }
 
     public void validate(CallContext context) {
@@ -60,6 +69,7 @@ public class DocletXML extends Class_MonitorableCoreObject implements Doclet, Or
         this.getMaturity(context);
         this.getForm(context);
         this.getLayout(context);
+        this.getStyle(context);
         this.getEncoding(context);
         this.getAspect(context);
         this.getEntity (context);
@@ -82,6 +92,19 @@ public class DocletXML extends Class_MonitorableCoreObject implements Doclet, Or
             XMLNode trimmed = this.xml_node.getChilds(context).trim(context);
             String content = trimmed != null && trimmed.getDOMNodes(context).size() == 1 ? trimmed.serialise(context, false) : this.xml_node.toString(context);
             boolean need_wrapper = (trimmed == null || trimmed.getDOMNodes(context).size() > 1);
+
+            Matcher matcher = gid.getMatcher(context, content);
+            String[] matches = gid.tryGetMatches(context, matcher);
+            if (    matches != null
+                 && matches.length == 1
+                ) {
+                String template = matches[0] + '\n' + content.substring(matcher.end());
+                Generator generator = GeneratorRegistry.get(context).getGenerator_InMemoryTemplate(context, template);
+                GeneratorOutputToString gots = new GeneratorOutputToString(context);
+                generator.generate(context, gots);
+                content = gots.getResult(context);
+            }
+
             if (need_wrapper) {
                 StringBuilder sb = new StringBuilder();
                 sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?><section xmlns:xlink=\"http://www.w3.org/1999/xlink\"><para>");
@@ -90,18 +113,6 @@ public class DocletXML extends Class_MonitorableCoreObject implements Doclet, Or
                 this.docbook = sb.toString();
             } else {
                 this.docbook = content;
-            }
-            // System.err.println("DOCBOOK: " + this.docbook.replaceAll("\n","\\n"));
-            Matcher matcher = gid.getMatcher(context, this.docbook);
-            String[] matches = gid.tryGetMatches(context, matcher);
-            if (    matches != null
-                 && matches.length == 1
-                ) {
-                String template = matches[0] + '\n' + this.docbook.substring(matcher.end());
-                Generator generator = GeneratorRegistry.get(context).getGenerator_InMemoryTemplate(context, template);
-                GeneratorOutputToString gots = new GeneratorOutputToString(context);
-                generator.generate(context, gots);
-                this.docbook = gots.getResult(context);
             }
         }
         return this.docbook;
@@ -125,7 +136,7 @@ public class DocletXML extends Class_MonitorableCoreObject implements Doclet, Or
         if (this.security_class == null) {
             String local_security_class = this.xml_node.getAttribute(context, "SecurityClass");
             if (local_security_class == null || local_security_class.length() == 0) {
-                local_security_class = "Default";
+                local_security_class = this.default_security_class;
             }
             this.check(context, local_security_class, security_class_format, "SecurityClass");
             String parent_security_class = this.parent == null ? null : this.parent.getSecurityClass(context);
@@ -190,7 +201,7 @@ public class DocletXML extends Class_MonitorableCoreObject implements Doclet, Or
             String local_maturity = this.xml_node.getAttribute(context, "Maturity");
             boolean is_group = (this.getDocletType(context) != null && this.getDocletType(context).matches("Doclet|Group"));
             if (local_maturity == null || local_maturity.length() == 0) {
-                local_maturity = is_group ? "Final" : "Scratch";
+                local_maturity = is_group ? "Final" : this.default_maturity;
             }
             this.check(context, local_maturity, maturity_format, "Maturity");
             String parent_maturity = this.parent == null ? null : this.parent.getMaturity(context);
@@ -230,6 +241,21 @@ public class DocletXML extends Class_MonitorableCoreObject implements Doclet, Or
             this.layout = parent_layout == null ? local_layout : createListIntersection(context, parent_layout, local_layout, "Layout");
         }
         return this.layout;
+    }
+
+    protected String[] style;
+    static protected RegularExpression style_format = new RegularExpression("^(?:[A-Za-z0-9_]+(?:[,:/ ]+[A-Za-z0-9_]+)*)?$");
+
+    public String[] getStyle(CallContext context) {
+        if (this.style == null) {
+            String style_string = this.xml_node.getAttribute(context, "Style");
+            if (style_string == null || style_string.length() == 0) {
+                return null;
+            }
+            this.check(context, style_string, style_format, "Style");
+            this.style = style_string.split("[,:/ ]+");
+        }
+        return this.style;
     }
 
     protected Encoding encoding;

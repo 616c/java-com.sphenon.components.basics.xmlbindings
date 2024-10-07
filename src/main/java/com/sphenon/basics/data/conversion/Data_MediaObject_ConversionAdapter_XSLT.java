@@ -1,7 +1,7 @@
 package com.sphenon.basics.data.conversion;
 
 /****************************************************************************
-  Copyright 2001-2018 Sphenon GmbH
+  Copyright 2001-2024 Sphenon GmbH
 
   Licensed under the Apache License, Version 2.0 (the "License"); you may not
   use this file except in compliance with the License. You may obtain a copy
@@ -52,6 +52,7 @@ public class Data_MediaObject_ConversionAdapter_XSLT implements Data_MediaObject
     protected String               filename_substitution_regexp;
     protected String               filename_substitution_subst;
     protected String               disposition_filename;
+    protected String               encoding;
 
     public Data_MediaObject_ConversionAdapter_XSLT (CallContext context, Data_MediaObject source_data, DynamicString xslt_text_locator, Scope dyns_scope, TypeImpl_MediaObject target_type, String filename_substitution_regexp, String filename_substitution_subst) {
         this.source_data                  = source_data;
@@ -164,7 +165,7 @@ public class Data_MediaObject_ConversionAdapter_XSLT implements Data_MediaObject
             xslt_locator.setBaseObject(context, this.source_is);
             xslt_error = false;
 
-            if ((notification_level & Notifier.SELF_DIAGNOSTICS) != 0) { cc.sendTrace(context, Notifier.SELF_DIAGNOSTICS, "StreamConverter, performing xslt transformation '%(locator)'...", "locator", xslt_locator.getTextLocator(context)); }
+            if ((notification_level & Notifier.SELF_DIAGNOSTICS) != 0) { cc.sendTrace(context, Notifier.SELF_DIAGNOSTICS, "StreamConverter, performing xslt transformation '%(locator)'...", "locator", xslt_locator.getPartialTextLocator(context)); }
 
             if ((notification_level & Notifier.SELF_DIAGNOSTICS) != 0) { cc.sendTrace(context, Notifier.SELF_DIAGNOSTICS, "StreamConverter, creating copy thread..."); }
 
@@ -245,7 +246,7 @@ public class Data_MediaObject_ConversionAdapter_XSLT implements Data_MediaObject
         if (cachef != null) {
             Locator origin = this.source_data.tryGetOrigin(context);
             if (origin != null) {
-                String cachefilename = encode(context, origin.getTextLocator(context));
+                String cachefilename = encode(context, origin.getPartialTextLocator(context));
                 if ((notification_level & Notifier.SELF_DIAGNOSTICS) != 0) { cc.sendTrace(context, Notifier.SELF_DIAGNOSTICS, "StreamConverter, checking cache entry '%(entry)'...", "entry", cachefilename); }
 
                 // type
@@ -322,6 +323,14 @@ public class Data_MediaObject_ConversionAdapter_XSLT implements Data_MediaObject
     public java.io.OutputStream getOutputStream(CallContext context) {
         CustomaryContext.create((Context)context).throwLimitation(context, "Data_MediaObject_ConversionAdapter_XSLT is not writable");
         throw (ExceptionLimitation) null; // compilernsists
+    }
+
+    public String getEncoding(CallContext context) {
+        return this.encoding;
+    }
+
+    public void setEncoding(CallContext context, String encoding) {
+        this.encoding = encoding;
     }
 
     final static String[] hex =
