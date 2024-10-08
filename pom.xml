@@ -147,16 +147,6 @@
       <version>1.0.0</version>
     </dependency>      
     <dependency>
-      <artifactId>jsp</artifactId>
-      <groupId>com.sphenon.components.ui.frontends</groupId>
-      <version>1.0.0</version>
-    </dependency>      
-    <dependency>
-      <artifactId>alf</artifactId>
-      <groupId>com.sphenon.components.ui.frontends</groupId>
-      <version>1.0.0</version>
-    </dependency>      
-    <dependency>
       <artifactId>application</artifactId>
       <groupId>com.sphenon.components.basics</groupId>
       <version>1.0.0</version>
